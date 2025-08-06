@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { BlobEffectProvider } from '@/components/BlobEffectProvider';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PropertyManager - Modern Property Management Platform",
+  title: "PropertyCloud - Modern Property Management Platform",
   description: "Streamline your property management with our comprehensive platform. Manage properties, tenants, and maintenance requests efficiently.",
 };
 
@@ -27,8 +28,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
-      </body>
+           <BlobEffectProvider>
+            {children}
+
+          </BlobEffectProvider>      </body>
     </html>
   );
 }

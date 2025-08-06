@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ReusableModal } from "@/components/ui/reusable-modal"
+import { useFormValidation } from "@/hooks/useFormValidation"
 
 import { Property, Tenant, MaintenanceRequest } from "@/lib/api"
 
@@ -35,13 +37,97 @@ export function PropertyForm({ open, onOpenChange, onSubmit, initialData }: Prop
         ...initialData
     })
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const [isLoading, setIsLoading] = useState(false)
+    const [submitError, setSubmitError] = useState<string | null>(null)
+
+    const validationConfig = {
+        name: { required: true, minLength: 2, maxLength: 100 },
+        address: { required: true, minLength: 5, maxLength: 200 },
+        city: { required: true, minLength: 2, maxLength: 50 },
+        state: { required: true, minLength: 2, maxLength: 2 },
+        zipCode: { required: true, pattern: /^\d{5}(-\d{4})?$/ },
+        units: {
+            required: true,
+            custom: (value: unknown) => {
+                const numValue = Number(value)
+                return numValue > 0 ? null : "Total units must be greater than 0"
+            }
+        },
+        occupied: {
+            required: true,
+            custom: (value: unknown) => {
+                const numValue = Number(value)
+                if (numValue < 0) return "Occupied units cannot be negative"
+                if (formData.units && numValue > formData.units) return "Occupied units cannot exceed total units"
+                return null
+            }
+        },
+        monthlyRevenue: {
+            required: true,
+            custom: (value: unknown) => {
+                const numValue = Number(value)
+                return numValue >= 0 ? null : "Monthly revenue cannot be negative"
+            }
+        },
+        avgRent: {
+            required: true,
+            custom: (value: unknown) => {
+                const numValue = Number(value)
+                return numValue >= 0 ? null : "Average rent cannot be negative"
+            }
+        },
+        yearBuilt: {
+            required: true,
+            custom: (value: unknown) => {
+                const numValue = Number(value)
+                const currentYear = new Date().getFullYear()
+                if (numValue < 1800 || numValue > currentYear + 5) {
+                    return "Please enter a valid year built"
+                }
+                return null
+            }
+        }
+    }
+
+    const {
+        values,
+        errors: validationErrors,
+        touchField,
+        touchAllFields,
+        getFieldError,
+        isFormValid
+    } = useFormValidation(formData, validationConfig)
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        onSubmit({
-            ...formData,
-            occupancyRate: formData.units > 0 ? Math.round((formData.occupied / formData.units) * 100) : 0
-        })
-        onOpenChange(false)
+        
+        // Touch all fields to show validation errors
+        touchAllFields()
+        
+        if (!isFormValid()) {
+            return
+        }
+
+        setIsLoading(true)
+        setSubmitError(null)
+
+        try {
+            onSubmit({
+                ...values,
+                occupancyRate: values.units > 0 ? Math.round((values.occupied / values.units) * 100) : 0
+            })
+            onOpenChange(false)
+        } catch (error) {
+            setSubmitError("Failed to save property. Please try again.")
+            console.error("Error saving property:", error)
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const handleInputChange = (field: string, value: string | number) => {
+        setFormData(prev => ({ ...prev, [field]: value }))
+        touchField(field)
     }
 
     return (
@@ -58,52 +144,66 @@ export function PropertyForm({ open, onOpenChange, onSubmit, initialData }: Prop
                         <Label htmlFor="name">Property Name</Label>
                         <Input
                             id="name"
-                            value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            value={values.name}
+                            onChange={(e) => {
+                                handleInputChange('name', e.target.value)
+                            }}
                             placeholder="Enter property name"
+                            className={getFieldError('name') ? 'border-red-500' : ''}
                             required
                         />
+                        {getFieldError('name') && <p className="text-sm text-red-500">{getFieldError('name')}</p>}
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="address">Street Address</Label>
                         <Input
                             id="address"
-                            value={formData.address}
-                            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                            value={values.address}
+                            onChange={(e) => {
+                                handleInputChange('address', e.target.value)
+                            }}
                             placeholder="Enter street address"
+                            className={getFieldError('address') ? 'border-red-500' : ''}
                             required
                         />
+                        {getFieldError('address') && <p className="text-sm text-red-500">{getFieldError('address')}</p>}
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="city">City</Label>
                             <Input
                                 id="city"
-                                value={formData.city}
-                                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                                value={values.city}
+                                onChange={(e) => handleInputChange('city', e.target.value)}
                                 placeholder="City"
+                                className={getFieldError('city') ? 'border-red-500' : ''}
                                 required
                             />
+                            {getFieldError('city') && <p className="text-sm text-red-500">{getFieldError('city')}</p>}
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="state">State</Label>
                             <Input
                                 id="state"
-                                value={formData.state}
-                                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                                value={values.state}
+                                onChange={(e) => handleInputChange('state', e.target.value)}
                                 placeholder="State"
+                                className={getFieldError('state') ? 'border-red-500' : ''}
                                 required
                             />
+                            {getFieldError('state') && <p className="text-sm text-red-500">{getFieldError('state')}</p>}
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="zipCode">ZIP Code</Label>
                             <Input
                                 id="zipCode"
-                                value={formData.zipCode}
-                                onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
+                                value={values.zipCode}
+                                onChange={(e) => handleInputChange('zipCode', e.target.value)}
                                 placeholder="ZIP"
+                                className={getFieldError('zipCode') ? 'border-red-500' : ''}
                                 required
                             />
+                            {getFieldError('zipCode') && <p className="text-sm text-red-500">{getFieldError('zipCode')}</p>}
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -113,10 +213,15 @@ export function PropertyForm({ open, onOpenChange, onSubmit, initialData }: Prop
                                 id="units"
                                 type="number"
                                 value={formData.units}
-                                onChange={(e) => setFormData({ ...formData, units: parseInt(e.target.value) || 0 })}
+                                onChange={(e) => {
+                                    const value = parseInt(e.target.value) || 0
+                                    handleInputChange('units', value)
+                                }}
                                 placeholder="0"
+                                className={getFieldError('units') ? 'border-red-500' : ''}
                                 required
                             />
+                            {getFieldError('units') && <p className="text-sm text-red-500">{getFieldError('units')}</p>}
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="occupied">Occupied Units</Label>
@@ -124,17 +229,22 @@ export function PropertyForm({ open, onOpenChange, onSubmit, initialData }: Prop
                                 id="occupied"
                                 type="number"
                                 value={formData.occupied}
-                                onChange={(e) => setFormData({ ...formData, occupied: parseInt(e.target.value) || 0 })}
+                                onChange={(e) => {
+                                    const value = parseInt(e.target.value) || 0
+                                    handleInputChange('occupied', value)
+                                }}
                                 placeholder="0"
-                                max={formData.units}
+                                max={values.units}
+                                className={getFieldError('occupied') ? 'border-red-500' : ''}
                                 required
                             />
+                            {getFieldError('occupied') && <p className="text-sm text-red-500">{getFieldError('occupied')}</p>}
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="type">Property Type</Label>
-                            <Select value={formData.type} onValueChange={(value: 'apartment' | 'house' | 'condo' | 'commercial') => setFormData({ ...formData, type: value })}>
+                            <Select value={values.type} onValueChange={(value: 'apartment' | 'house' | 'condo' | 'commercial') => handleInputChange('type', value)}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
@@ -151,13 +261,15 @@ export function PropertyForm({ open, onOpenChange, onSubmit, initialData }: Prop
                             <Input
                                 id="yearBuilt"
                                 type="number"
-                                value={formData.yearBuilt}
-                                onChange={(e) => setFormData({ ...formData, yearBuilt: parseInt(e.target.value) || new Date().getFullYear() })}
+                                value={values.yearBuilt}
+                                onChange={(e) => handleInputChange('yearBuilt', parseInt(e.target.value) || new Date().getFullYear())}
                                 placeholder="2024"
                                 min="1800"
                                 max={new Date().getFullYear() + 5}
+                                className={getFieldError('yearBuilt') ? 'border-red-500' : ''}
                                 required
                             />
+                            {getFieldError('yearBuilt') && <p className="text-sm text-red-500">{getFieldError('yearBuilt')}</p>}
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -166,33 +278,39 @@ export function PropertyForm({ open, onOpenChange, onSubmit, initialData }: Prop
                             <Input
                                 id="monthlyRevenue"
                                 type="number"
-                                value={formData.monthlyRevenue}
-                                onChange={(e) => setFormData({ ...formData, monthlyRevenue: parseInt(e.target.value) || 0 })}
+                                value={values.monthlyRevenue}
+                                onChange={(e) => handleInputChange('monthlyRevenue', parseInt(e.target.value) || 0)}
                                 placeholder="0"
+                                className={getFieldError('monthlyRevenue') ? 'border-red-500' : ''}
                                 required
                             />
+                            {getFieldError('monthlyRevenue') && <p className="text-sm text-red-500">{getFieldError('monthlyRevenue')}</p>}
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="avgRent">Average Rent</Label>
                             <Input
                                 id="avgRent"
                                 type="number"
-                                value={formData.avgRent}
-                                onChange={(e) => setFormData({ ...formData, avgRent: parseInt(e.target.value) || 0 })}
+                                value={values.avgRent}
+                                onChange={(e) => handleInputChange('avgRent', parseInt(e.target.value) || 0)}
                                 placeholder="0"
+                                className={getFieldError('avgRent') ? 'border-red-500' : ''}
                                 required
                             />
+                            {getFieldError('avgRent') && <p className="text-sm text-red-500">{getFieldError('avgRent')}</p>}
                         </div>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="description">Description</Label>
                         <Textarea
                             id="description"
-                            value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                            value={values.description}
+                            onChange={(e) => handleInputChange('description', e.target.value)}
                             placeholder="Enter property description"
                             rows={3}
+                            className={getFieldError('description') ? 'border-red-500' : ''}
                         />
+                        {getFieldError('description') && <p className="text-sm text-red-500">{getFieldError('description')}</p>}
                     </div>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -749,10 +867,55 @@ export function MaintenanceForm({ open, onOpenChange, onSubmit, initialData }: M
         ...initialData
     })
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const [isLoading, setIsLoading] = useState(false)
+    const [submitError, setSubmitError] = useState<string | null>(null)
+
+    const validationConfig = {
+        title: { required: true, minLength: 2, maxLength: 100 },
+        description: { required: true, minLength: 10, maxLength: 1000 },
+        unit: { required: true, minLength: 1, maxLength: 10 },
+        tenant: { required: true, minLength: 2, maxLength: 100 },
+        priority: { required: true },
+        category: { required: true },
+        status: { required: true }
+    }
+
+    const {
+        values,
+        errors: validationErrors,
+        touchField,
+        touchAllFields,
+        getFieldError,
+        isFormValid
+    } = useFormValidation(formData, validationConfig)
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        onSubmit(formData)
-        onOpenChange(false)
+        
+        // Touch all fields to show validation errors
+        touchAllFields()
+        
+        if (!isFormValid()) {
+            return
+        }
+
+        setIsLoading(true)
+        setSubmitError(null)
+
+        try {
+            onSubmit(values)
+            onOpenChange(false)
+        } catch (error) {
+            setSubmitError("Failed to save maintenance request. Please try again.")
+            console.error("Error saving maintenance request:", error)
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const handleInputChange = (field: string, value: string | number) => {
+        setFormData(prev => ({ ...prev, [field]: value }))
+        touchField(field)
     }
 
     return (
@@ -765,69 +928,95 @@ export function MaintenanceForm({ open, onOpenChange, onSubmit, initialData }: M
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-3">
-                    <div className="space-y-2">
-                        <Label htmlFor="title">Issue Title</Label>
-                        <Input
-                            id="title"
-                            value={formData.title}
-                            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                            placeholder="Brief description of the issue"
-                            required
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="description">Description</Label>
-                        <Textarea
-                            id="description"
-                            value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            placeholder="Detailed description of the maintenance issue"
-                            rows={3}
-                            required
-                        />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="unit">Unit</Label>
-                            <Input
-                                id="unit"
-                                value={formData.unit}
-                                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                                placeholder="A-101"
-                                required
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="priority">Priority</Label>
-                            <Select value={formData.priority} onValueChange={(value: 'low' | 'medium' | 'high' | 'urgent') => setFormData({ ...formData, priority: value })}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select priority" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="low">Low</SelectItem>
-                                    <SelectItem value="medium">Medium</SelectItem>
-                                    <SelectItem value="high">High</SelectItem>
-                                    <SelectItem value="urgent">Urgent</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="category">Category</Label>
-                        <Select value={formData.category} onValueChange={(value: 'plumbing' | 'electrical' | 'hvac' | 'appliance' | 'structural' | 'other') => setFormData({ ...formData, category: value })}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="plumbing">Plumbing</SelectItem>
-                                <SelectItem value="electrical">Electrical</SelectItem>
-                                <SelectItem value="hvac">HVAC</SelectItem>
-                                <SelectItem value="appliance">Appliance</SelectItem>
-                                <SelectItem value="structural">Structural</SelectItem>
-                                <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tenant">Tenant Name</Label>
+                  <Input
+                    id="tenant"
+                    value={values.tenant}
+                    onChange={(e) => {
+                      handleInputChange('tenant', e.target.value)
+                    }}
+                    placeholder="Enter tenant name"
+                    className={getFieldError('tenant') ? 'border-red-500' : ''}
+                    required
+                  />
+                  {getFieldError('tenant') && <p className="text-sm text-red-500">{getFieldError('tenant')}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="title">Issue Title</Label>
+                  <Input
+                    id="title"
+                    value={values.title}
+                    onChange={(e) => {
+                      handleInputChange('title', e.target.value)
+                    }}
+                    placeholder="Brief description of the issue"
+                    className={getFieldError('title') ? 'border-red-500' : ''}
+                    required
+                  />
+                  {getFieldError('title') && <p className="text-sm text-red-500">{getFieldError('title')}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={values.description}
+                    onChange={(e) => {
+                      handleInputChange('description', e.target.value)
+                    }}
+                    placeholder="Detailed description of the maintenance issue"
+                    rows={3}
+                    className={getFieldError('description') ? 'border-red-500' : ''}
+                    required
+                  />
+                  {getFieldError('description') && <p className="text-sm text-red-500">{getFieldError('description')}</p>}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="unit">Unit</Label>
+                    <Input
+                      id="unit"
+                      value={values.unit}
+                      onChange={(e) => {
+                        handleInputChange('unit', e.target.value)
+                      }}
+                      placeholder="A-101"
+                      className={getFieldError('unit') ? 'border-red-500' : ''}
+                      required
+                    />
+                    {getFieldError('unit') && <p className="text-sm text-red-500">{getFieldError('unit')}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="priority">Priority</Label>
+                    <Select value={formData.priority} onValueChange={(value: 'low' | 'medium' | 'high' | 'urgent') => setFormData({ ...formData, priority: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select priority" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category</Label>
+                  <Select value={formData.category} onValueChange={(value: 'plumbing' | 'electrical' | 'hvac' | 'appliance' | 'structural' | 'other') => setFormData({ ...formData, category: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="plumbing">Plumbing</SelectItem>
+                      <SelectItem value="electrical">Electrical</SelectItem>
+                      <SelectItem value="hvac">HVAC</SelectItem>
+                      <SelectItem value="appliance">Appliance</SelectItem>
+                      <SelectItem value="structural">Structural</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                             Cancel

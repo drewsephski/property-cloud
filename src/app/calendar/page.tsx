@@ -66,6 +66,7 @@ export default function CalendarPage() {
     description: '',
     duration: 60
   })
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'maintenance' | 'inspection' | 'lease' | 'payment' | 'showing'>('all')
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month')
@@ -205,33 +206,70 @@ export default function CalendarPage() {
     }
   }
 
+  const validateEventForm = () => {
+    const newErrors: Record<string, string> = {}
+
+    // Required field validation
+    if (!formData.title.trim()) {
+      newErrors.title = "Event title is required"
+    } else if (formData.title.trim().length < 3) {
+      newErrors.title = "Event title must be at least 3 characters"
+    }
+
+    if (!formData.date) {
+      newErrors.date = "Date is required"
+    } else {
+      const selectedDate = new Date(formData.date)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      
+      if (selectedDate < today) {
+        newErrors.date = "Event date cannot be in the past"
+      }
+    }
+
+    if (!formData.time) {
+      newErrors.time = "Time is required"
+    }
+
+    if (!formData.duration || formData.duration < 15) {
+      newErrors.duration = "Duration must be at least 15 minutes"
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
   const handleSubmitEvent = (e: React.FormEvent) => {
     e.preventDefault()
     
-    const newEvent: CalendarEvent = {
-      id: selectedEvent?.id || Date.now().toString(),
-      title: formData.title,
-      date: formData.date,
-      time: formData.time,
-      type: formData.type,
-      location: formData.location,
-      tenant: formData.tenant,
-      priority: formData.priority,
-      status: formData.status,
-      description: formData.description,
-      duration: formData.duration,
-      createdAt: selectedEvent?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
+    if (validateEventForm()) {
+      const newEvent: CalendarEvent = {
+        id: selectedEvent?.id || Date.now().toString(),
+        title: formData.title,
+        date: formData.date,
+        time: formData.time,
+        type: formData.type,
+        location: formData.location,
+        tenant: formData.tenant,
+        priority: formData.priority,
+        status: formData.status,
+        description: formData.description,
+        duration: formData.duration,
+        createdAt: selectedEvent?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
 
-    if (selectedEvent) {
-      setEvents(events.map(e => e.id === selectedEvent.id ? newEvent : e))
-    } else {
-      setEvents([...events, newEvent])
-    }
+      if (selectedEvent) {
+        setEvents(events.map(e => e.id === selectedEvent.id ? newEvent : e))
+      } else {
+        setEvents([...events, newEvent])
+      }
 
-    setEventFormOpen(false)
-    setSelectedEvent(null)
+      setEventFormOpen(false)
+      setSelectedEvent(null)
+      setErrors({})
+    }
   }
 
   const handleExportEvents = () => {
@@ -787,129 +825,178 @@ export default function CalendarPage() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmitEvent} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="title">Event Title</Label>
+            <Input
+              id="title"
+              value={formData.title}
+              onChange={(e) => {
+                setFormData({ ...formData, title: e.target.value })
+                // Clear error when user starts typing
+                if (errors.title) {
+                  setErrors(prev => {
+                    const newErrors = { ...prev }
+                    delete newErrors.title
+                    return newErrors
+                  })
+                }
+              }}
+              placeholder="Enter event title"
+              className={errors.title ? 'border-red-500' : ''}
+              required
+              minLength={3}
+            />
+            {errors.title && <p className="text-sm text-red-500">{errors.title}</p>}
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="title">Event Title</Label>
+              <Label htmlFor="date">Date</Label>
               <Input
-                id="title"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Enter event title"
+                id="date"
+                type="date"
+                value={formData.date}
+                onChange={(e) => {
+                  setFormData({ ...formData, date: e.target.value })
+                  // Clear error when user starts typing
+                  if (errors.date) {
+                    setErrors(prev => {
+                      const newErrors = { ...prev }
+                      delete newErrors.date
+                      return newErrors
+                    })
+                  }
+                }}
+                className={errors.date ? 'border-red-500' : ''}
                 required
-                minLength={3}
               />
+              {errors.date && <p className="text-sm text-red-500">{errors.date}</p>}
             </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="time">Time</Label>
-                <Input
-                  id="time"
-                  type="time"
-                  value={formData.time}
-                  onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="type">Event Type</Label>
-                <Select value={formData.type} onValueChange={(value: 'maintenance' | 'inspection' | 'lease' | 'payment' | 'showing') => setFormData({ ...formData, type: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="maintenance">Maintenance</SelectItem>
-                    <SelectItem value="inspection">Inspection</SelectItem>
-                    <SelectItem value="lease">Lease</SelectItem>
-                    <SelectItem value="payment">Payment</SelectItem>
-                    <SelectItem value="showing">Showing</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="priority">Priority</Label>
-                <Select value={formData.priority} onValueChange={(value: 'low' | 'medium' | 'high') => setFormData({ ...formData, priority: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
             <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
+              <Label htmlFor="time">Time</Label>
               <Input
-                id="location"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                placeholder="Enter location"
+                id="time"
+                type="time"
+                value={formData.time}
+                onChange={(e) => {
+                  setFormData({ ...formData, time: e.target.value })
+                  // Clear error when user starts typing
+                  if (errors.time) {
+                    setErrors(prev => {
+                      const newErrors = { ...prev }
+                      delete newErrors.time
+                      return newErrors
+                    })
+                  }
+                }}
+                className={errors.time ? 'border-red-500' : ''}
+                required
               />
+              {errors.time && <p className="text-sm text-red-500">{errors.time}</p>}
             </div>
+          </div>
 
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="tenant">Tenant</Label>
-              <Input
-                id="tenant"
-                value={formData.tenant}
-                onChange={(e) => setFormData({ ...formData, tenant: e.target.value })}
-                placeholder="Enter tenant name"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="duration">Duration (minutes)</Label>
-              <Input
-                id="duration"
-                type="number"
-                value={formData.duration}
-                onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) || 60 })}
-                placeholder="60"
-                min="15"
-                step="15"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select value={formData.status || 'scheduled'} onValueChange={(value: 'scheduled' | 'completed' | 'cancelled') => setFormData({ ...formData, status: value })}>
+              <Label htmlFor="type">Event Type</Label>
+              <Select value={formData.type} onValueChange={(value: 'maintenance' | 'inspection' | 'lease' | 'payment' | 'showing') => setFormData({ ...formData, type: value })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="scheduled">Scheduled</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="maintenance">Maintenance</SelectItem>
+                  <SelectItem value="inspection">Inspection</SelectItem>
+                  <SelectItem value="lease">Lease</SelectItem>
+                  <SelectItem value="payment">Payment</SelectItem>
+                  <SelectItem value="showing">Showing</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Enter event description"
-                rows={3}
-              />
+              <Label htmlFor="priority">Priority</Label>
+              <Select value={formData.priority} onValueChange={(value: 'low' | 'medium' | 'high') => setFormData({ ...formData, priority: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="location">Location</Label>
+            <Input
+              id="location"
+              value={formData.location}
+              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              placeholder="Enter location"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tenant">Tenant</Label>
+            <Input
+              id="tenant"
+              value={formData.tenant}
+              onChange={(e) => setFormData({ ...formData, tenant: e.target.value })}
+              placeholder="Enter tenant name"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="duration">Duration (minutes)</Label>
+            <Input
+              id="duration"
+              type="number"
+              value={formData.duration}
+              onChange={(e) => {
+                const value = parseInt(e.target.value) || 60
+                setFormData({ ...formData, duration: value })
+                // Clear error when user starts typing
+                if (errors.duration) {
+                  setErrors(prev => {
+                    const newErrors = { ...prev }
+                    delete newErrors.duration
+                    return newErrors
+                  })
+                }
+              }}
+              placeholder="60"
+              min="15"
+              step="15"
+              className={errors.duration ? 'border-red-500' : ''}
+            />
+            {errors.duration && <p className="text-sm text-red-500">{errors.duration}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="status">Status</Label>
+            <Select value={formData.status || 'scheduled'} onValueChange={(value: 'scheduled' | 'completed' | 'cancelled') => setFormData({ ...formData, status: value })}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="scheduled">Scheduled</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Enter event description"
+              rows={3}
+            />
+          </div>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEventFormOpen(false)}>

@@ -7,9 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { 
-  FileText, 
-  Plus, 
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  FileText,
+  Plus,
   Search,
   Download,
   Eye,
@@ -18,7 +22,8 @@ import {
   Upload,
   Filter,
   Folder,
-  File
+  File,
+  X
 } from "lucide-react"
 
 interface Document {
@@ -68,9 +73,31 @@ const mockDocuments: Document[] = [
 ]
 
 export default function DocumentsPage() {
-  const [documents] = useState<Document[]>(mockDocuments)
+  const [documents, setDocuments] = useState<Document[]>(mockDocuments)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState("all")
+  
+  // Modal states
+  const [addDocumentOpen, setAddDocumentOpen] = useState(false)
+  const [addFolderOpen, setAddFolderOpen] = useState(false)
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
+  
+  // Form states
+  const [documentForm, setDocumentForm] = useState({
+    name: '',
+    type: 'other' as 'lease' | 'contract' | 'inspection' | 'financial' | 'legal' | 'other',
+    description: '',
+    file: null as File | null
+  })
+  
+  const [folderForm, setFolderForm] = useState({
+    name: '',
+    description: ''
+  })
+
+  // Error states
+  const [documentErrors, setDocumentErrors] = useState<Record<string, string>>({})
+  const [folderErrors, setFolderErrors] = useState<Record<string, string>>({})
 
   const filteredDocuments = documents.filter(doc => {
     const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -99,6 +126,128 @@ export default function DocumentsPage() {
     financial: documents.filter(d => d.type === 'financial').length
   }
 
+  // Document form handlers
+  const handleAddDocument = () => {
+    setDocumentForm({
+      name: '',
+      type: 'other',
+      description: '',
+      file: null
+    })
+    setAddDocumentOpen(true)
+  }
+
+  const handleEditDocument = (document: Document) => {
+    setDocumentForm({
+      name: document.name,
+      type: document.type,
+      description: document.description || '',
+      file: null
+    })
+    setSelectedDocument(document)
+    setAddDocumentOpen(true)
+  }
+
+  const validateDocumentForm = () => {
+    const newErrors: Record<string, string> = {}
+    
+    if (!documentForm.name.trim()) {
+      newErrors.name = 'Document name is required'
+    }
+    
+    setDocumentErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleDocumentSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (validateDocumentForm()) {
+      const newDocument: Document = {
+        id: selectedDocument?.id || Date.now().toString(),
+        name: documentForm.name,
+        type: documentForm.type,
+        size: documentForm.file ? `${(documentForm.file.size / 1024 / 1024).toFixed(2)} MB` : '0 KB',
+        uploadDate: new Date().toISOString().split('T')[0],
+        description: documentForm.description
+      }
+
+      if (selectedDocument) {
+        setDocuments(documents.map(doc => doc.id === selectedDocument.id ? newDocument : doc))
+      } else {
+        setDocuments([...documents, newDocument])
+      }
+
+      setAddDocumentOpen(false)
+      setSelectedDocument(null)
+      setDocumentForm({
+        name: '',
+        type: 'other',
+        description: '',
+        file: null
+      })
+      setDocumentErrors({})
+    }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setDocumentForm({ ...documentForm, file })
+    }
+  }
+
+  // Folder form handlers
+  const handleAddFolder = () => {
+    setFolderForm({
+      name: '',
+      description: ''
+    })
+    setAddFolderOpen(true)
+  }
+
+  // Delete document handler
+  const handleDeleteDocument = (id: string) => {
+    if (confirm('Are you sure you want to delete this document?')) {
+      setDocuments(documents.filter(doc => doc.id !== id))
+    }
+  }
+
+  const validateFolderForm = () => {
+    const newErrors: Record<string, string> = {}
+    
+    if (!folderForm.name.trim()) {
+      newErrors.name = 'Folder name is required'
+    }
+    
+    setFolderErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleFolderSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (validateFolderForm()) {
+      const newFolder: Document = {
+        id: Date.now().toString(),
+        name: folderForm.name,
+        type: 'other',
+        size: '0 KB',
+        uploadDate: new Date().toISOString().split('T')[0],
+        description: folderForm.description
+      }
+
+      setDocuments([...documents, newFolder])
+
+      setAddFolderOpen(false)
+      setFolderForm({
+        name: '',
+        description: ''
+      })
+      setFolderErrors({})
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation 
@@ -118,11 +267,11 @@ export default function DocumentsPage() {
                 <p className="text-gray-600">Manage property documents and files</p>
               </div>
               <div className="flex space-x-2">
-                <Button variant="outline">
+                <Button variant="outline" onClick={handleAddDocument}>
                   <Upload className="h-4 w-4 mr-2" />
-                  Upload
+                  Add Document
                 </Button>
-                <Button>
+                <Button onClick={handleAddFolder}>
                   <Plus className="h-4 w-4 mr-2" />
                   New Folder
                 </Button>
@@ -229,13 +378,13 @@ export default function DocumentsPage() {
                           <Button size="sm" variant="ghost">
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="ghost">
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" variant="ghost">
+                          <Button size="sm" variant="ghost" onClick={() => handleEditDocument(document)}>
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="ghost">
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleDeleteDocument(document.id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -266,6 +415,139 @@ export default function DocumentsPage() {
           </div>
         </main>
       </div>
+
+      {/* Add Document Modal */}
+      <Dialog open={addDocumentOpen} onOpenChange={setAddDocumentOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{selectedDocument ? "Edit Document" : "Add Document"}</DialogTitle>
+            <DialogDescription>
+              {selectedDocument ? "Update document details" : "Upload a new document to the system"}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleDocumentSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="documentName">Document Name</Label>
+            <Input
+              id="documentName"
+              value={documentForm.name}
+              onChange={(e) => {
+                setDocumentForm({ ...documentForm, name: e.target.value })
+                // Clear error when user starts typing
+                if (documentErrors.name) {
+                  setDocumentErrors(prev => {
+                    const newErrors = { ...prev }
+                    delete newErrors.name
+                    return newErrors
+                  })
+                }
+              }}
+              placeholder="Enter document name"
+              className={documentErrors.name ? 'border-red-500' : ''}
+              required
+            />
+            {documentErrors.name && <p className="text-sm text-red-500">{documentErrors.name}</p>}
+          </div>
+            <div className="space-y-2">
+              <Label htmlFor="documentType">Document Type</Label>
+              <Select value={documentForm.type} onValueChange={(value: 'lease' | 'contract' | 'inspection' | 'financial' | 'legal' | 'other') => setDocumentForm({ ...documentForm, type: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select document type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="lease">Lease</SelectItem>
+                  <SelectItem value="contract">Contract</SelectItem>
+                  <SelectItem value="inspection">Inspection</SelectItem>
+                  <SelectItem value="financial">Financial</SelectItem>
+                  <SelectItem value="legal">Legal</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="documentDescription">Description</Label>
+              <Textarea
+                id="documentDescription"
+                value={documentForm.description}
+                onChange={(e) => setDocumentForm({ ...documentForm, description: e.target.value })}
+                placeholder="Enter document description (optional)"
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="documentFile">Upload File</Label>
+              <Input
+                id="documentFile"
+                type="file"
+                onChange={handleFileChange}
+                accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,.jpg,.jpeg,.png"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAddDocumentOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                {selectedDocument ? "Update Document" : "Add Document"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Folder Modal */}
+      <Dialog open={addFolderOpen} onOpenChange={setAddFolderOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add New Folder</DialogTitle>
+            <DialogDescription>
+              Create a new folder to organize your documents
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleFolderSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="folderName">Folder Name</Label>
+            <Input
+              id="folderName"
+              value={folderForm.name}
+              onChange={(e) => {
+                setFolderForm({ ...folderForm, name: e.target.value })
+                // Clear error when user starts typing
+                if (folderErrors.name) {
+                  setFolderErrors(prev => {
+                    const newErrors = { ...prev }
+                    delete newErrors.name
+                    return newErrors
+                  })
+                }
+              }}
+              placeholder="Enter folder name"
+              className={folderErrors.name ? 'border-red-500' : ''}
+              required
+            />
+            {folderErrors.name && <p className="text-sm text-red-500">{folderErrors.name}</p>}
+          </div>
+            <div className="space-y-2">
+              <Label htmlFor="folderDescription">Description</Label>
+              <Textarea
+                id="folderDescription"
+                value={folderForm.description}
+                onChange={(e) => setFolderForm({ ...folderForm, description: e.target.value })}
+                placeholder="Enter folder description (optional)"
+                rows={3}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAddFolderOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                Create Folder
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

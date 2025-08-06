@@ -92,7 +92,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
                     <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                             <Building2 className="h-8 w-8 text-blue-600" />
-                            <h1 className="text-2xl font-bold text-gray-900">PropertyManager</h1>
+                            <h1 className="text-2xl font-bold text-gray-900">PropertyCloud</h1>
                         </div>
                         <div className="flex items-center space-x-4">
                             <Button variant="ghost">Features</Button>
@@ -113,7 +113,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
                             <span className="text-blue-600 font-black"> Modern Tools</span>
                         </h2>
                         <p className="text-lg text-gray-600 mb-6 leading-relaxed">
-                            Manage properties, tenants, and maintenance requests with our comprehensive platform.
+                            Manage properties, tenants, and maintenance requests with our comprehensive platform. <br/>
                             Built for property managers who demand efficiency and reliability.
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 justify-center">
